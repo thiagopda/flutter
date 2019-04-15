@@ -30,6 +30,28 @@ void main() {
   CocoaPods cocoaPodsUnderTest;
   InvokeProcess resultOfPodVersion;
 
+  const String contentWithRunnerDependencies = """
+  project 'Runner', {
+    'Debug' => :debug,
+    'Profile' => :release,
+    'Release' => :release,
+  }
+  target 'Runner' do
+    pod 'Flutter'
+  end
+  """;
+
+  const String contentWithoutRunnerDependencies = """
+  project 'Runner', {
+    'Debug' => :debug,
+    'Profile' => :release,
+    'Release' => :release,
+  }
+  target 'OtherTarget' do
+    pod 'SomeDependency'
+  end
+  """;
+
   void pretendPodIsNotInstalled() {
     resultOfPodVersion = () async => throw 'Executable does not exist';
   }
@@ -189,7 +211,7 @@ void main() {
     });
 
     testUsingContext('includes Pod config in xcconfig files, if not present', () async {
-      projectUnderTest.ios.podfile..createSync()..writeAsStringSync('Existing Podfile');
+      projectUnderTest.ios.podfile..createSync()..writeAsStringSync(contentWithRunnerDependencies);
       projectUnderTest.ios.xcodeConfigFor('Debug')
         ..createSync(recursive: true)
         ..writeAsStringSync('Existing debug config');
@@ -215,7 +237,7 @@ void main() {
 
   group('Update xcconfig', () {
     testUsingContext('includes Pod config in xcconfig files, if the user manually added Pod dependencies without using Flutter plugins', () async {
-      projectUnderTest.ios.podfile..createSync()..writeAsStringSync('Custom Podfile');
+      projectUnderTest.ios.podfile..createSync()..writeAsStringSync(contentWithRunnerDependencies);
       projectUnderTest.ios.podfileLock..createSync()..writeAsStringSync('Podfile.lock from user executed `pod install`');
       projectUnderTest.packagesFile..createSync()..writeAsStringSync('');
       projectUnderTest.ios.xcodeConfigFor('Debug')
@@ -235,6 +257,30 @@ void main() {
       final String releaseContents = projectUnderTest.ios.xcodeConfigFor('Release').readAsStringSync();
       expect(releaseContents, contains(
           '#include "Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"\n'));
+      expect(releaseContents, contains('Existing release config'));
+    }, overrides: <Type, Generator>{
+      FileSystem: () => fs,
+    });
+
+    testUsingContext('does not include Pod config in xcconfig files, if Runner target is not present', () async {
+      projectUnderTest.ios.podfile..createSync()..writeAsStringSync(contentWithoutRunnerDependencies);
+      projectUnderTest.ios.xcodeConfigFor('Debug')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('Existing debug config');
+      projectUnderTest.ios.xcodeConfigFor('Release')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('Existing release config');
+
+      final FlutterProject project = await FlutterProject.fromPath('project');
+      cocoaPodsUnderTest.setupPodfile(project.ios);
+
+      final String debugContents = projectUnderTest.ios.xcodeConfigFor('Debug').readAsStringSync();
+      expect(debugContents, isNot(contains(
+          '#include "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"\n')));
+      expect(debugContents, contains('Existing debug config'));
+      final String releaseContents = projectUnderTest.ios.xcodeConfigFor('Release').readAsStringSync();
+      expect(releaseContents, isNot(contains(
+          '#include "Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"\n')));
       expect(releaseContents, contains('Existing release config'));
     }, overrides: <Type, Generator>{
       FileSystem: () => fs,
