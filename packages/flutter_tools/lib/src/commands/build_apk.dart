@@ -14,7 +14,6 @@ class BuildApkCommand extends BuildSubCommand {
     usesTargetOption();
     addBuildModeFlags(verboseHelp: verboseHelp);
     addDynamicModeFlags(verboseHelp: verboseHelp);
-    addDynamicPatchingFlags(verboseHelp: verboseHelp);
     usesFlavorOption();
     usesPubOption();
     usesBuildNumberOption();
@@ -28,7 +27,9 @@ class BuildApkCommand extends BuildSubCommand {
       )
       ..addOption('target-platform',
         defaultsTo: 'android-arm',
-        allowed: <String>['android-arm', 'android-arm64', 'android-x86', 'android-x64']);
+        allowed: <String>['android-arm', 'android-arm64', 'android-x86', 'android-x64'],
+        help: 'The target platform for which the app is compiled.',
+      );
   }
 
   @override
@@ -49,7 +50,7 @@ class BuildApkCommand extends BuildSubCommand {
   @override
   Future<FlutterCommandResult> runCommand() async {
     await buildApk(
-      project: await FlutterProject.current(),
+      project: FlutterProject.current(),
       target: targetFile,
       buildInfo: getBuildInfo(),
     );
